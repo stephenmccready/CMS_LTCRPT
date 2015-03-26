@@ -89,7 +89,8 @@ SET QUOTED_IDENTIFIER OFF
 	Declare @excelfilename As varchar(255)
 	Set @excelfilename='Your Server\LTCRPT_20'+Replace(Right(@filename,15),'.','_')+'.xls'
 	
-	Exec [dbo].[proc_generate_excel] 'Your Database','tbl_TEMP_LTCRPT', @excelfilename
+	-- See https://github.com/stephenmccready/MSSQL_Utilities/
+	Exec [dbo].[usp_generate_excel_with_columns] 'Your Database','tbl_TEMP_LTCRPT', @excelfilename
 
 	If OBJECT_ID('tbl_TEMP_LTCRPT') Is Not Null
 		Drop Table tbl_TEMP_LTCRPT
