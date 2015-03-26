@@ -1,0 +1,26 @@
+Create Table dbo.tbl_LTCRPT (
+	  ContractNumber		varchar(5) Null
+	, PlanNumber			varchar(3) Null
+	, PlanName				varchar(30) Null
+	, LastName				varchar(24) Null
+	, FirstName				varchar(15) Null
+	, HICN					varchar(12) Null
+	, DOB					varchar(8) Null
+	, Gender				varchar(1) Null
+	, NursingHomeLOS		varchar(6) Null
+	, NursingHomeAdmitDate	varchar(8) Null
+	, NursingHomeAssessDate	varchar(8) Null
+	, PPSIndicator			varchar(1) Null
+	, NursingHomeName		varchar(50) Null
+	, MedicareProviderID	varchar(12) Null
+	, ProviderTelephoneNo	varchar(13) Null
+	, ProviderAddress		varchar(50) Null
+	, ProviderCity			varchar(20) Null
+	, ProviderState			varchar(2) Null
+	, ProviderZip			varchar(11) Null
+	, ImportFilename		varchar(128) Null
+	, ImportDate			DateTime Null
+)
+
+Create Clustered Index ImportFilename On tbl_LTCRPT(ImportFilename)
+Create Index HICN On tbl_LTCRPT(HICN)
