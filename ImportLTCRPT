@@ -1,0 +1,108 @@
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER OFF
+GO
+
+Create procedure [dbo].[ImportLTCRPT] 
+	@filename As varChar(128), @emailRecipient1 As varChar(128), @emailRecipient2 As varChar(128), @ImportDate As DateTime
+As
+
+Begin
+
+If OBJECT_ID('[dbo].[tbl_LTCRPT_In]') Is Not Null
+	Drop Table [dbo].[tbl_LTCRPT_In]
+
+Create Table [dbo].[tbl_LTCRPT_In] (col001 varchar(max))
+
+Declare @BulkCmd As nvarChar(4000)
+Set		@BulkCmd = "BULK INSERT tbl_LTCRPT_In FROM '"+@filename+"' WITH (FIELDTERMINATOR = '\n')"
+
+Exec	(@BulkCmd)
+
+Insert	Into [dbo].[tbl_LTCRPT]
+Select	SubString(col001,1,5) As [ContractNumber]
+,		SubString(col001,6,3) As [PlanNumber]
+,		SubString(col001,9,50) As [PlanName]
+,		SubString(col001,59,24) As [LastName]
+,		SubString(col001,83,15) As [FirstName]
+,		SubString(col001,98,12) As [HICN]
+,		SubString(col001,110,8) As [DOB]
+,		SubString(col001,118,1) As [Gender]
+,		SubString(col001,119,6) As [NursingHomeLOS]
+,		SubString(col001,125,8) As [NursingHomeAdmitDate]
+,		SubString(col001,133,8) As [NursingHomeAssessDate]
+,		SubString(col001,141,1) As [PPSIndicator]
+,		SubString(col001,142,50) As [NursingHomeName]
+,		SubString(col001,192,12) As [MedicareProviderID]
+,		SubString(col001,204,13) As [ProviderTelephoneNo]
+,		SubString(col001,217,50) As [ProviderAddress]
+,		SubString(col001,267,20) As [ProviderCity]
+,		SubString(col001,287,2) As [ProviderState]
+,		SubString(col001,289,11) As [ProviderZip]
+,		@filename As ImportFilename
+,		@ImportDate As ImportDate
+From	[dbo].[tbl_LTCRPT_In]
+Left	Outer Join [dbo].[tbl_LTCRPT] As X 
+		On X.ImportFilename=@filename
+		And X.HICN=SubString(col001,98,12)
+Where	X. HICN Is Null
+
+Declare @body As varChar(max), @kount As int, @query as varchar(1028)
+Set @kount=(Select COUNT(*) From [dbo].[tbl_LTCRPT_In] Where SubString(col001,1,10) <> '')
+
+SET QUOTED_IDENTIFIER OFF
+
+	Set @query=   "Set NoCount On; Select '<tr><td>'+[ContractNumber]+'</td>'
+				+'<td>'+SubString(Cast(ImportDate As varchar(23)),1,12)+'</td>'
+				+'<td>'+Cast(Count(*) As varchar(11))+'</td></tr>'
+				FROM [dbo].[tbl_LTCRPT] Group By ImportDate,ContractNumber Order By ImportDate Desc, ContractNumber"
+	Set	@body='<style>table{font-family:"Trebuchet MS", Arial, Helvetica, sans-serif;width:100%;border-collapse:collapse;}
+	table td, th {font-size:1em;border:1px solid #2148C0;padding:3px 7px 2px 7px; text-align:center}
+	table th {font-size:1.1em;text-align:center;padding-top:5px;padding-bottom:4px;background-color:#9BB0EE;color:#ffffff;}
+	table tr:nth-child(odd) td {color:#000000;background-color:#CFEDF7;}</style>'
+	+Cast(@kount As varchar(10))+' records added to tbl_LTCRPT<br /><br /> From file: '+@filename
+	+'<br /><br /><br /><small>SQL Job: Import_LTCRPT [ImportLTCRPT]</small><br /><br /><table>'
+	+'<tr><th>Contract<br />Number</th>'
+	+'<th>Import<br />Date</th>'
+	+'<th>Record<br />Count</th></tr>'
+
+	-- Email the summary
+	EXEC msdb..sp_send_dbmail 
+	@profile_name='Your Mail Profile Goes Here',
+	@recipients=@emailRecipient1,
+	@subject='Long-Term Institutionalized Resident Report [LTCRPT] Summary',
+	@body=@body,
+	@body_format='HTML',
+	@query=@query,
+	@query_result_header=0
+
+	-- Output just this months parsed records to tbl_TEMP_LTCRPT
+	If OBJECT_ID('tbl_TEMP_LTCRPT') Is Not Null
+		Drop Table tbl_TEMP_LTCRPT	
+	
+	Select	*
+	Into	tbl_TEMP_LTCRPT
+	From	[dbo].[tbl_LTCRPT]
+	Where	ImportDate=@ImportDate
+	
+	-- Create the excel file
+	Declare @excelfilename As varchar(255)
+	Set @excelfilename='Your Server\LTCRPT_20'+Replace(Right(@filename,15),'.','_')+'.xls'
+	
+	Exec [dbo].[proc_generate_excel] 'Your Database','tbl_TEMP_LTCRPT', @excelfilename
+
+	If OBJECT_ID('tbl_TEMP_LTCRPT') Is Not Null
+		Drop Table tbl_TEMP_LTCRPT
+			
+	-- Email the excel as an attachment
+	Set @body='Long-Term Institutionalized Resident Report [LTCRPT] Attached<br /><br /><small>SQL Job: Import_LTCRPT [ImportLTCRPT]</small>'
+		
+	EXEC msdb..sp_send_dbmail 
+		@profile_name='Your Mail Profile Goes Here',
+		@recipients=@emailRecipient1,
+		@subject='Long-Term Institutionalized Resident Report [LTCRPT] Attached',
+		@body=@body,
+		@body_format='HTML',
+		@file_attachments=@excelfilename
+
+End
